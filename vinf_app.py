@@ -26,7 +26,7 @@ class DrugSearchCLI:
             print("Please create the index first using pylucene_indexer.py")
             sys.exit(1)
     
-    def search(self, query_str, fuzzy=False, top_k=10):
+    def search(self, query_str, fuzzy=True, top_k=10):
         fields = ["drug_name", "active_ingredients", "indications_and_usage", 
                   "medical_uses", "pharmacodynamics", "pharmacokinetics"]
         
@@ -34,7 +34,7 @@ class DrugSearchCLI:
         boosts.put("drug_name", Float(5.0))
         boosts.put("active_ingredients", Float(4.0))
         boosts.put("indications_and_usage", Float(4.0))
-        boosts.put("medical_uses", Float(2.0))
+        boosts.put("medical_uses", Float(4.0))
         boosts.put("pharmacodynamics", Float(1.5))
         boosts.put("pharmacokinetics", Float(1.0))
         
@@ -46,15 +46,16 @@ class DrugSearchCLI:
             parser.setFuzzyMinSim(0.7)
             query_str = ' '.join([f"{term}~" for term in query_str.split()])
         
-        try:
             query = QueryParser.parse(parser, query_str)
-        except:
-            parser.setDefaultOperator(QueryParser.Operator.OR)
-            query = QueryParser.parse(parser, query_str)
+
         
         hits = self.searcher.search(query, top_k * 2).scoreDocs
         
         results = []
+        if not hits:
+            parser.setDefaultOperator(QueryParser.Operator.OR)
+            query_or = QueryParser.parse(parser, query_str)
+            hits = self.searcher.search(query_or, top_k * 2).scoreDocs
         seen = set()
         for hit in hits:
             doc = self.stored_fields.document(hit.doc)
@@ -76,7 +77,7 @@ class DrugSearchCLI:
         
         return results
     
-    def display_results(self, results, show_details=False):
+    def display_results(self, results, show_details=True):
         if not results:
             print("No results found.")
             return
@@ -101,8 +102,6 @@ class DrugSearchCLI:
         print("=" * 70)
         print("\nCommands:")
         print("  - Enter query to search")
-        print("  - 'fuzzy <query>' for fuzzy search")
-        print("  - 'details <query>' for detailed results")
         print("  - 'quit' or 'exit' to quit")
         print()
         
@@ -114,20 +113,14 @@ class DrugSearchCLI:
                     continue
                 
                 if user_input.lower() in ['quit', 'exit', 'q']:
-                    print("Goodbye!")
+                    print("exited")
                     break
                 
-                fuzzy = False
-                show_details = False
+                fuzzy = True
+                show_details = True
                 
-                if user_input.lower().startswith('fuzzy '):
-                    fuzzy = True
-                    query = user_input[6:].strip()
-                elif user_input.lower().startswith('details '):
-                    show_details = True
-                    query = user_input[8:].strip()
-                else:
-                    query = user_input
+                
+                query = user_input
                 
                 if not query:
                     print("Please enter a query.")
